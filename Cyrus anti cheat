@@ -1,0 +1,149 @@
+-- Rayfield UI Setup
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Cyrus Combat Engine",
+    LoadingTitle = "Initializing Systems...",
+    LoadingSubtitle = "by JP",
+    ConfigurationSaving = { Enabled = false },
+    Discord = { Enabled = false },
+    KeySystem = false
+})
+
+-- States & Settings Globals
+local Settings = {
+    ESP_Enabled = false,
+    Aim_Enabled = false,
+    Aim_Smoothness = 0.05, -- Lower = Stronger/Faster tracking, Higher = Slower Nudge
+    Aim_FOV = 250,
+    Max_Distance = 300
+}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- --- UTILITY FUNCTIONS ---
+
+local function isShiftLocking()
+    return UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
+end
+
+-- Strong Aim Assist Target Logic
+local function getClosestTarget()
+    local closestTarget = nil
+    local shortestMouseDist = Settings.Aim_FOV
+    
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local rootPos = character.HumanoidRootPart.Position
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChildOfClass("Humanoid") then
+            local targetChar = player.Character
+            local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+            local targetRoot = targetChar.HumanoidRootPart
+            
+            if targetHum.Health > 0 and (targetRoot.Position - rootPos).Magnitude <= Settings.Max_Distance then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetRoot.Position)
+                
+                if onScreen then
+                    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    
+                    if mouseDist < shortestMouseDist then
+                        shortestMouseDist = mouseDist
+                        closestTarget = targetRoot
+                    end
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+-- --- VISUALS & ESP ---
+
+local function manageESP(character)
+    local highlight = character:FindFirstChild("CyrusESP_Highlight")
+    
+    if Settings.ESP_Enabled then
+        if not highlight and character:FindFirstChild("HumanoidRootPart") then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "CyrusESP_Highlight"
+            highlight.FillColor = Color3.fromRGB(255, 30, 30)
+            highlight.FillTransparency = 0.4
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.OutlineTransparency = 0
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent = character
+        end
+    else
+        if highlight then highlight:Destroy() end
+    end
+end
+
+-- Update loop for handling active ESP toggling dynamically
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                manageESP(player.Character)
+            end
+        end
+    end
+end)
+
+-- --- LOOP TARGET TRACKING ---
+
+RunService.RenderStepped:Connect(function()
+    if not Settings.Aim_Enabled or not isShiftLocking() then return end
+    
+    local target = getClosestTarget()
+    if target then
+        -- Strong snap: Lowering smoothness pulls camera hard directly into target vectors
+        local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Aim_Smoothness)
+    end
+end)
+
+-- --- RAYFIELD TABS & CONTROLS ---
+
+local CombatTab = Window:CreateTab("Combat Features", 4483362458)
+
+CombatTab:CreateSection("Visual Enhancements")
+
+CombatTab:CreateToggle({
+    Name = "Player ESP (Through Walls)",
+    CurrentValue = false,
+    Flag = "esp_toggle",
+    Callback = function(Value)
+        Settings.ESP_Enabled = Value
+    end
+})
+
+CombatTab:CreateSection("Aim Mechanics")
+
+CombatTab:CreateToggle({
+    Name = "Shiftlock Aim Assist",
+    CurrentValue = false,
+    Flag = "aim_toggle",
+    Callback = function(Value)
+        Settings.Aim_Enabled = Value
+    end
+})
+
+CombatTab:CreateSlider({
+    Name = "Aim Strength (Smoothness)",
+    Range = {1, 20},
+    Increment = 1,
+    Suffix = "Subtle Factor",
+    CurrentValue = 5,
+    Flag = "aim_smooth",
+    Callback = function(Value)
+        -- Inverts values: 1 gives maximum stiffness/snappiness (0.01 Lerp), 20 gives loose assistance
+        Settings.Aim_Smoothness = Value / 100
+    
