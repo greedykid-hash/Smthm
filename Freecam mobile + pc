@@ -1,0 +1,307 @@
+--[[ FREECAM w/ ZOOM (Rayfield UI) — Desktop + Mobile ------------------------------------------------------ Place as a LocalScript inside StarterPlayerScripts. Desktop Controls: WASD - move E / Q - up / down Left Shift - speed boost Mouse - look around Scroll Wheel- zoom in/out (FOV) Mobile Controls: On-screen D-pad (bottom-left) - move forward/back/left/right Up/Down buttons (bottom-right) - move up/down BOOST button - hold for speed burst Drag anywhere else on screen - look around Pinch - zoom in/out (FOV) Rayfield panel lets you toggle freecam, tune move speed, smoothing (stabilization), and zoom (FOV) with a slider. No external module requires — everything is self-contained, so it works fine under Studio Lite's Play mode limitations. ]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- ===== Load Rayfield =====
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- ===== State =====
+local freecamEnabled = false
+local freecamCF = camera.CFrame
+local targetCF = camera.CFrame
+
+local moveSpeed = 40
+local smoothness = 0.15 -- 0.01 = very smooth/slow to settle, 1 = instant/snappy
+
+local fov = 70
+local targetFov = 70
+local zoomStep = 3
+local minFov = 10
+local maxFov = 100
+
+local originalCameraType = camera.CameraType
+
+-- unified movement state (fed by keyboard AND mobile buttons)
+local held = {
+	forward = false,
+	back = false,
+	left = false,
+	right = false,
+	up = false,
+	down = false,
+	boost = false,
+}
+
+-- ===== Freecam toggle =====
+local function setFreecam(state)
+	freecamEnabled = state
+	if state then
+		originalCameraType = camera.CameraType
+		freecamCF = camera.CFrame
+		targetCF = camera.CFrame
+		camera.CameraType = Enum.CameraType.Scriptable
+		if not UserInputService.TouchEnabled then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		end
+	else
+		camera.CameraType = originalCameraType or Enum.CameraType.Custom
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
+end
+
+-- ===== Rayfield Window =====
+local Window = Rayfield:CreateWindow({
+	Name = "Freecam Controls",
+	LoadingTitle = "Freecam",
+	LoadingSubtitle = "Photo & Montage Mode",
+	ConfigurationSaving = { Enabled = false },
+})
+
+local Tab = Window:CreateTab("Freecam")
+
+Tab:CreateToggle({
+	Name = "Enable Freecam",
+	CurrentValue = false,
+	Flag = "FreecamToggle",
+	Callback = function(value)
+		setFreecam(value)
+	end,
+})
+
+Tab:CreateSlider({
+	Name = "Move Speed",
+	Range = { 5, 150 },
+	Increment = 1,
+	CurrentValue = moveSpeed,
+	Flag = "MoveSpeed",
+	Callback = function(value)
+		moveSpeed = value
+	end,
+})
+
+Tab:CreateSlider({
+	Name = "Stabilization (Smoothness)",
+	Range = { 1, 100 },
+	Increment = 1,
+	CurrentValue = smoothness * 100,
+	Flag = "Smoothness",
+	Callback = function(value)
+		smoothness = value / 100
+	end,
+})
+
+Tab:CreateSlider({
+	Name = "Zoom (FOV)",
+	Range = { minFov, maxFov },
+	Increment = 1,
+	CurrentValue = fov,
+	Flag = "FovSlider",
+	Callback = function(value)
+		targetFov = value
+	end,
+})
+
+Tab:CreateButton({
+	Name = "Reset Zoom",
+	Callback = function()
+		targetFov = 70
+	end,
+})
+
+Tab:CreateToggle({
+	Name = "Show Mobile Controls",
+	CurrentValue = UserInputService.TouchEnabled,
+	Flag = "MobileControlsToggle",
+	Callback = function(value)
+		if MobileGui then
+			MobileGui.Enabled = value
+		end
+	end,
+})
+
+-- ===== Desktop: Keyboard input =====
+UserInputService.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.W then held.forward = true
+	elseif input.KeyCode == Enum.KeyCode.S then held.back = true
+	elseif input.KeyCode == Enum.KeyCode.A then held.left = true
+	elseif input.KeyCode == Enum.KeyCode.D then held.right = true
+	elseif input.KeyCode == Enum.KeyCode.E then held.up = true
+	elseif input.KeyCode == Enum.KeyCode.Q then held.down = true
+	elseif input.KeyCode == Enum.KeyCode.LeftShift then held.boost = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.W then held.forward = false
+	elseif input.KeyCode == Enum.KeyCode.S then held.back = false
+	elseif input.KeyCode == Enum.KeyCode.A then held.left = false
+	elseif input.KeyCode == Enum.KeyCode.D then held.right = false
+	elseif input.KeyCode == Enum.KeyCode.E then held.up = false
+	elseif input.KeyCode == Enum.KeyCode.Q then held.down = false
+	elseif input.KeyCode == Enum.KeyCode.LeftShift then held.boost = false
+	end
+end)
+
+-- ===== Desktop: Mouse look + scroll zoom =====
+UserInputService.InputChanged:Connect(function(input)
+	if not freecamEnabled then return end
+
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Delta
+		local sensitivity = 0.002
+		targetCF = targetCF * CFrame.Angles(0, -delta.X * sensitivity, 0)
+		targetCF = targetCF * CFrame.Angles(-delta.Y * sensitivity, 0, 0)
+
+	elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+		targetFov = math.clamp(targetFov - input.Position.Z * zoomStep, minFov, maxFov)
+		if Rayfield.Flags and Rayfield.Flags.FovSlider then
+			pcall(function() Rayfield.Flags.FovSlider:Set(targetFov) end)
+		end
+	end
+end)
+
+-- ===== Mobile: touch-drag look =====
+local activeLookTouch = nil
+local lastTouchPos = nil
+
+UserInputService.TouchStarted:Connect(function(touch, gpe)
+	if gpe then return end -- ignore touches that hit UI buttons
+	if not activeLookTouch then
+		activeLookTouch = touch
+		lastTouchPos = touch.Position
+	end
+end)
+
+UserInputService.TouchMoved:Connect(function(touch, gpe)
+	if not freecamEnabled then return end
+	if touch ~= activeLookTouch or not lastTouchPos then return end
+	local delta = touch.Position - lastTouchPos
+	lastTouchPos = touch.Position
+	local sensitivity = 0.003
+	targetCF = targetCF * CFrame.Angles(0, -delta.X * sensitivity, 0)
+	targetCF = targetCF * CFrame.Angles(-delta.Y * sensitivity, 0, 0)
+end)
+
+UserInputService.TouchEnded:Connect(function(touch)
+	if touch == activeLookTouch then
+		activeLookTouch = nil
+		lastTouchPos = nil
+	end
+end)
+
+-- ===== Mobile: pinch to zoom =====
+local lastPinchScale = 1
+
+UserInputService.TouchPinch:Connect(function(_touchPositions, scale, _velocity, state, gpe)
+	if not freecamEnabled or gpe then return end
+	if state == Enum.UserInputState.Begin then
+		lastPinchScale = scale
+		return
+	end
+	local delta = scale - lastPinchScale
+	lastPinchScale = scale
+	targetFov = math.clamp(targetFov - delta * 40, minFov, maxFov)
+	if Rayfield.Flags and Rayfield.Flags.FovSlider then
+		pcall(function() Rayfield.Flags.FovSlider:Set(targetFov) end)
+	end
+	if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+		lastPinchScale = 1
+	end
+end)
+
+-- ===== Mobile: on-screen D-pad / up-down / boost buttons =====
+MobileGui = Instance.new("ScreenGui")
+MobileGui.Name = "FreecamMobileControls"
+MobileGui.ResetOnSpawn = false
+MobileGui.IgnoreGuiInset = true
+MobileGui.Enabled = UserInputService.TouchEnabled
+MobileGui.Parent = player:WaitForChild("PlayerGui")
+
+local function makeButton(name, text, position, key)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Text = text
+	btn.Size = UDim2.new(0, 60, 0, 60)
+	btn.Position = position
+	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	btn.BackgroundTransparency = 0.35
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.TextScaled = true
+	btn.Font = Enum.Font.GothamBold
+	btn.AutoButtonColor = true
+	btn.Parent = MobileGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = btn
+
+	-- MouseButton1Down/Up also fire for touch taps on GuiObjects,
+	-- so this works identically on phone/tablet and desktop.
+	btn.MouseButton1Down:Connect(function()
+		held[key] = true
+	end)
+	btn.MouseButton1Up:Connect(function()
+		held[key] = false
+	end)
+	btn.MouseLeave:Connect(function()
+		held[key] = false
+	end)
+
+	return btn
+end
+
+-- D-pad, bottom-left
+makeButton("Forward", "▲", UDim2.new(0, 80, 1, -170), "forward")
+makeButton("Back", "▼", UDim2.new(0, 80, 1, -100), "back")
+makeButton("Left", "◄", UDim2.new(0, 15, 1, -100), "left")
+makeButton("Right", "►", UDim2.new(0, 145, 1, -100), "right")
+
+-- Up/Down + Boost, bottom-right
+makeButton("Up", "UP", UDim2.new(1, -145, 1, -170), "up")
+makeButton("Down", "DN", UDim2.new(1, -75, 1, -170), "down")
+local boostBtn = makeButton("Boost", "BOOST", UDim2.new(1, -145, 1, -100), "boost")
+boostBtn.Size = UDim2.new(0, 130, 0, 60)
+
+-- ===== Update loop (smoothed / stabilized) =====
+RunService.RenderStepped:Connect(function(dt)
+	if not freecamEnabled then return end
+
+	local moveDir = Vector3.new()
+	if held.forward then moveDir += Vector3.new(0, 0, -1) end
+	if held.back then moveDir += Vector3.new(0, 0, 1) end
+	if held.left then moveDir += Vector3.new(-1, 0, 0) end
+	if held.right then moveDir += Vector3.new(1, 0, 0) end
+	if held.up then moveDir += Vector3.new(0, 1, 0) end
+	if held.down then moveDir += Vector3.new(0, -1, 0) end
+
+	local speedMultiplier = held.boost and 3 or 1
+
+	if moveDir.Magnitude > 0 then
+		moveDir = moveDir.Unit
+		local worldMove = targetCF:VectorToWorldSpace(moveDir) * moveSpeed * speedMultiplier * dt
+		targetCF = targetCF + worldMove
+	end
+
+	local s = math.clamp(smoothness, 0.01, 1)
+	freecamCF = freecamCF:Lerp(targetCF, s)
+	fov = fov + (targetFov - fov) * s
+
+	camera.CFrame = freecamCF
+	camera.FieldOfView = fov
+end)
+
+-- ===== Safety: exit freecam on respawn =====
+player.CharacterAdded:Connect(function()
+	if freecamEnabled then
+		setFreecam(false)
+		if Rayfield.Flags and Rayfield.Flags.FreecamToggle then
+			pcall(function() Rayfield.Flags.FreecamToggle:Set(false) end)
+		end
+	end
+end)
