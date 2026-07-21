@@ -1,0 +1,47 @@
+Ride Storm - Farm Sin Miedo (Versión Fuerte)
+local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local screenGui = Instance.new("ScreenGui")
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 320, 0, 190)
+frame.Position = UDim2.new(0.02, 0, 0.2, 0)
+frame.BackgroundColor3 = Color3.fromRGB(40, 0, 10)
+frame.Parent = screenGui
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 45)
+title.BackgroundTransparency = 1
+title.Text = "💰 FARM SIN MIEDO"
+title.TextColor3 = Color3.fromRGB(255, 100, 0)
+title.TextScaled = true
+title.Font = Enum.Font.GothamBold
+title.Parent = frame
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0.9, 0, 0, 90)
+button.Position = UDim2.new(0.05, 0, 0.35, 0)
+button.BackgroundColor3 = Color3.fromRGB(200, 0, 50)
+button.Text = "FARM SIN MIEDO\nOFF"
+button.TextColor3 = Color3.new(1,1,1)
+button.TextScaled = true
+button.Font = Enum.Font.GothamBold
+button.Parent = frame
+local connection = nil
+local farming = false
+button.MouseButton1Click:Connect(function()
+farming = not farming
+local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+if farming then
+button.Text = "FARM SIN MIEDO\nON"
+button.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+connection = RunService.Heartbeat:Connect(function()
+if not farming or not root then return end
+root.Velocity = Vector3.new(0, 18, -195) -- Velocidad muy alta
+end)
+else
+button.Text = "FARM SIN MIEDO\nOFF"
+button.BackgroundColor3 = Color3.fromRGB(200, 0, 50)
+if connection then connection:Disconnect() end
+end
+end)
+print("💰 Farm Sin Miedo activado - Ve a la autopista y súbete a la moto más rápida")
