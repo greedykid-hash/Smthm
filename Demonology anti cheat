@@ -1,0 +1,40 @@
+--[[
+    Demonology Auto Evidence Finder & Ghost Identifier
+    by Nobody â€” untuk lu yang terlalu tolol buat main detective sendiri
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-----------------------------------------------------
+-- GHOST DATABASE (Evidence combinations per ghost)
+-- Format: { "GhostName", {"Evidence1", "Evidence2", "Evidence3"} }
+-----------------------------------------------------
+local GhostDatabase = {
+    {"Spirit",          {"EMF5", "SpiritBox", "GhostWriting"}},
+    {"Wraith",          {"EMF5", "SpiritBox", "DOTS"}},
+    {"Phantom",         {"SpiritBox", "Ultraviolet", "DOTS"}},
+    {"Poltergeist",     {"SpiritBox", "Ultraviolet", "GhostWriting"}},
+    {"Banshee",         {"Ultraviolet", "GhostOrbs", "DOTS"}},
+    {"Jinn",            {"EMF5", "Ultraviolet", "FreezingTemps"}},
+    {"Mare",            {"SpiritBox", "GhostOrbs", "GhostWriting"}},
+    {"Revenant",        {"GhostOrbs", "GhostWriting", "FreezingTemps"}},
+    {"Shade",           {"EMF5", "GhostWriting", "FreezingTemps"}},
+    {"Demon",           {"Ultraviolet", "GhostWriting", "FreezingTemps"}},
+    {"Yurei",           {"GhostOrbs", "FreezingTemps", "DOTS"}},
+    {"Oni",             {"EMF5", "FreezingTemps", "DOTS"}},
+    {"Yokai",           {"SpiritBox", "GhostOrbs", "DOTS"}},
+    {"Hantu",           {"Ultraviolet", "GhostOrbs", "FreezingTemps"}},
+    {"Goryo",           {"EMF5", "Ultraviolet", "DOTS"}},
+    {"Myling",          {"EMF5", "Ultraviolet", "GhostWriting"}},
+    {"Onryo",           {"SpiritBox", "GhostOrbs", "FreezingTemps"}},
+    {"TheTwins",        {"EMF5", "SpiritBox", "FreezingTemps"}},
+    {"Raiju",           {"EMF5", "GhostOrbs", "DOTS"}},
+    {"Obake",           {"EMF5", "Ultraviolet", "GhostOrbs"}},
+    {"Mimic",           {"SpiritBox", "Ultraviolet", "FreezingTemps"}},
+    {"Moroi",           {"SpiritBox", "GhostWriting", "FreezingTemps"}},
+    {"Deogen",          {"SpiritBox", "GhostWriting", "DOTS"}},
+    {"Thaye",           {"GhostOrbs", "GhostWriting",
