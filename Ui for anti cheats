@@ -1,0 +1,174 @@
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local Library = {}
+Library.__index = Library
+
+function Library.Init()
+    local self = setmetatable({}, Library)
+    self.Tabs = {}
+    self.CurrentTab = nil
+
+    -- Main ScreenGui
+    self.Gui = Instance.new("ScreenGui")
+    self.Gui.Name = "DevilJp969_UI"
+    self.Gui.ResetOnSpawn = false
+    self.Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    -- 1. FLOATING KALI LOGO BUTTON
+    self.ToggleButton = Instance.new("ImageButton")
+    self.ToggleButton.Name = "KaliToggleButton"
+    self.ToggleButton.Size = UDim2.new(0, 60, 0, 60)
+    self.ToggleButton.Position = UDim2.new(1, -80, 1, -80)
+    self.ToggleButton.BackgroundTransparency = 1
+    -- Custom Kali Red Emblem Texture
+    self.ToggleButton.Image = "rbxassetid://10734950309" -- High-res Kali Linux emblem ID
+    self.ToggleButton.Parent = self.Gui
+
+    -- Add circular mask corner
+    local LogoCorner = Instance.new("UICorner")
+    LogoCorner.CornerRadius = UDim.new(1, 0)
+    LogoCorner.Parent = self.ToggleButton
+
+    -- 2. MAIN WINDOW FRAME
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Name = "MainFrame"
+    self.MainFrame.Size = UDim2.new(0, 620, 0, 420)
+    self.MainFrame.Position = UDim2.new(0.5, -310, 0.5, -210)
+    self.MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+    self.MainFrame.BorderSizePixel = 0
+    self.MainFrame.Visible = true
+    self.MainFrame.Parent = self.Gui
+
+    local MainCorner = Instance.new("UICorner")
+    MainCorner.CornerRadius = UDim.new(0, 12)
+    MainCorner.Parent = self.MainFrame
+
+    -- TOP BAR
+    local TopBar = Instance.new("Frame")
+    TopBar.Name = "TopBar"
+    TopBar.Size = UDim2.new(1, 0, 0, 45)
+    TopBar.BackgroundTransparency = 1
+    TopBar.Parent = self.MainFrame
+
+    local Title = Instance.new("TextLabel")
+    Title.Text = "Devil Jp 969"
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 20
+    Title.TextColor3 = Color3.fromRGB(230, 230, 235)
+    Title.Position = UDim2.new(0, 20, 0, 10)
+    Title.Size = UDim2.new(0, 200, 0, 25)
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.BackgroundTransparency = 1
+    Title.Parent = TopBar
+
+    -- Close Button
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Text = "✕"
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = 16
+    CloseBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+    CloseBtn.Position = UDim2.new(1, -40, 0, 8)
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Parent = TopBar
+
+    CloseBtn.MouseButton1Click:Connect(function()
+        self.MainFrame.Visible = false
+    end)
+
+    -- Toggle visibility with Kali Logo
+    self.ToggleButton.MouseButton1Click:Connect(function()
+        self.MainFrame.Visible = not self.MainFrame.Visible
+        
+        -- Pulse animation on click
+        local tweenIn = TweenService:Create(self.ToggleButton, TweenInfo.new(0.1), {Size = UDim2.new(0, 52, 0, 52)})
+        local tweenOut = TweenService:Create(self.ToggleButton, TweenInfo.new(0.1), {Size = UDim2.new(0, 60, 0, 60)})
+        tweenIn:Play()
+        tweenIn.Completed:Wait()
+        tweenOut:Play()
+    end)
+
+    -- SIDEBAR NAVIGATION
+    self.Sidebar = Instance.new("Frame")
+    self.Sidebar.Name = "Sidebar"
+    self.Sidebar.Size = UDim2.new(0, 55, 1, -55)
+    self.Sidebar.Position = UDim2.new(0, 10, 0, 50)
+    self.Sidebar.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+    self.Sidebar.Parent = self.MainFrame
+
+    local SideCorner = Instance.new("UICorner")
+    SideCorner.CornerRadius = UDim.new(0, 8)
+    SideCorner.Parent = self.Sidebar
+
+    local SideList = Instance.new("UIListLayout")
+    SideList.SortOrder = Enum.SortOrder.LayoutOrder
+    SideList.Padding = UDim.new(0, 8)
+    SideList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    SideList.Parent = self.Sidebar
+
+    local SidePadding = Instance.new("UIPadding")
+    SidePadding.PaddingTop = UDim.new(0, 10)
+    SidePadding.Parent = self.Sidebar
+
+    -- MAIN CONTENT CONTAINER
+    self.ContentFrame = Instance.new("Frame")
+    self.ContentFrame.Name = "ContentFrame"
+    self.ContentFrame.Size = UDim2.new(1, -80, 1, -55)
+    self.ContentFrame.Position = UDim2.new(0, 72, 0, 50)
+    self.ContentFrame.BackgroundTransparency = 1
+    self.ContentFrame.Parent = self.MainFrame
+
+    return self
+end
+
+-- METHOD TO ADD NEW BLANK TAB CONTAINERS
+function Library:CreateTab(iconId)
+    local TabObj = {}
+    
+    -- Navigation Icon Button
+    local TabBtn = Instance.new("ImageButton")
+    TabBtn.Size = UDim2.new(0, 36, 0, 36)
+    TabBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 45)
+    TabBtn.Image = iconId or "rbxassetid://6031068426" -- Default Home Icon
+    TabBtn.ImageColor3 = Color3.fromRGB(180, 180, 190)
+    TabBtn.Parent = self.Sidebar
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = TabBtn
+
+    -- Blank Content Canvas for this tab
+    local Canvas = Instance.new("ScrollingFrame")
+    Canvas.Size = UDim2.new(1, 0, 1, 0)
+    Canvas.BackgroundTransparency = 1
+    Canvas.BorderSizePixel = 0
+    Canvas.ScrollBarThickness = 3
+    Canvas.Visible = false
+    Canvas.Parent = self.ContentFrame
+
+    TabObj.Canvas = Canvas
+    TabObj.Button = TabBtn
+
+    TabBtn.MouseButton1Click:Connect(function()
+        for _, tab in ipairs(self.Tabs) do
+            tab.Canvas.Visible = false
+            tab.Button.BackgroundColor3 = Color3.fromRGB(38, 38, 45)
+        end
+        Canvas.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    end)
+
+    table.insert(self.Tabs, TabObj)
+    
+    -- Auto-select first created tab
+    if #self.Tabs == 1 then
+        Canvas.Visible = true
+        TabBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    end
+
+    return Canvas
+end
+
+return Library
