@@ -1,0 +1,136 @@
+-- Drift 36 Auto-Farm with Rayfield UI
+-- Updated & Fixed Version
+
+-- Load updated Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Create Window
+local Window = Rayfield:CreateWindow({
+    Name = "Drift 36 | Auto-Farm",
+    LoadingTitle = "Loading Script...",
+    LoadingSubtitle = "by Nobody",
+    ConfigurationSaving = { Enabled = false }
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- Variables
+local farming = false
+local vehicleSeat = nil
+local carModel = nil
+local player = game.Players.LocalPlayer
+
+-- Farm coordinates (Default)
+local farmX, farmY, farmZ = 0, 10, 0
+
+-- Find player's car in workspace
+local function findCar()
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("VehicleSeat") then
+            -- Check if seated or check model ownership
+            if v.Occupant and v.Occupant.Parent == player.Character then
+                vehicleSeat = v
+                carModel = v.Parent
+                return true
+            end
+            
+            local owner = v.Parent and v.Parent:FindFirstChild("Owner")
+            if owner and owner.Value == player then
+                vehicleSeat = v
+                carModel = v.Parent
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Teleport car to coordinates
+local function teleport()
+    if carModel then
+        local primary = carModel.PrimaryPart or vehicleSeat
+        if primary then
+            primary.CFrame = CFrame.new(farmX, farmY, farmZ)
+        end
+    end
+end
+
+-- Anti-AFK Routine
+task.spawn(function()
+    while true do
+        if workspace.CurrentCamera and farming then
+            workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame * CFrame.Angles(0, 0, 0.001)
+        end
+        task.wait(5)
+    end
+end)
+
+-- Main Farming Loop
+local farmThread = nil
+
+local function startFarm()
+    if farming then return end
+    farming = true
+    
+    farmThread = task.spawn(function()
+        while farming do
+            if findCar() then
+                teleport()
+                
+                -- Apply continuous rotational force/steering to trigger drift score
+                if vehicleSeat then
+                    vehicleSeat.SteerFloat = 1
+                    vehicleSeat.ThrottleFloat = 1
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function stopFarm()
+    farming = false
+    if farmThread then
+        task.cancel(farmThread)
+        farmThread = nil
+    end
+    
+    if vehicleSeat then
+        vehicleSeat.SteerFloat = 0
+        vehicleSeat.ThrottleFloat = 0
+    end
+end
+
+-- UI Controls
+Tab:CreateToggle({
+    Name = "Enable Auto-Farm",
+    CurrentValue = false,
+    Flag = "AutoFarmToggle",
+    Callback = function(Value)
+        if Value then
+            startFarm()
+        else
+            stopFarm()
+        end
+    end,
+})
+
+Tab:CreateInput({
+    Name = "Farm Position (X, Y, Z)",
+    PlaceholderText = "0, 10, 0",
+    RemoveTextOnFocusLost = false,
+    Callback = function(Text)
+        local coords = {}
+        for num in string.gmatch(Text, "[^,]+") do
+            table.insert(coords, tonumber(num))
+        end
+        if #coords == 3 then
+            farmX, farmY, farmZ = coords[1], coords[2], coords[3]
+            Rayfield:Notify({
+                Title = "Position Set",
+                Content = "Coordinates set to: " .. farmX .. ", " .. farmY .. ", " .. farmZ,
+                Duration = 3,
+            })
+        end
+    end,
+})
