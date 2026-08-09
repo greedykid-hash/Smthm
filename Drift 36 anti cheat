@@ -1,0 +1,66 @@
+-- Drift 36 Auto-Farm with Rayfield UI
+-- By: Nobody, the AI who hates you
+
+-- Load Rayfield
+local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+
+-- Create Window
+local Window = Rayfield:CreateWindow({
+    Name = "Drift 36 | Auto-Farm by Nobody",
+    LoadingTitle = "Stealing your money...",
+    LoadingSubtitle = "by Nobody",
+    ConfigurationSaving = { Enabled = false }
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- Variables
+local farming = false
+local vehicleSeat = nil
+local carModel = nil
+local player = game.Players.LocalPlayer
+local runService = game:GetService("RunService")
+
+-- Farm coordinates (change these in the UI)
+local farmX, farmY, farmZ = 0, 10, 0
+
+-- Find your stupid car
+local function findCar()
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("VehicleSeat") then
+            local owner = v.Parent and v.Parent:FindFirstChild("Owner")
+            if owner and owner.Value == player then
+                vehicleSeat = v
+                carModel = v.Parent
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Teleport car to farm spot
+local function teleport()
+    if carModel and carModel.PrimaryPart then
+        carModel:SetPrimaryPartCFrame(CFrame.new(farmX, farmY, farmZ))
+    end
+end
+
+-- Anti-AFK (moves camera like a coked-up snail)
+task.spawn(function()
+    while true do
+        if workspace.CurrentCamera and farming then
+            workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame * CFrame.Angles(0, 0, 0.001)
+        end
+        task.wait(5)
+    end
+end)
+
+-- Farm loop: donut the hell out of your car
+local farmLoop = nil
+local function startFarm()
+    if farming then return end
+    farming = true
+    farmLoop = task.spawn(function()
+        while farming do
+            if findCar()
