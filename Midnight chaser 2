@@ -1,0 +1,38 @@
+-- Hook all RemoteEvents to log payloads during normal gameplay
+-- Run this BEFORE playing normally to capture real reward calls
+
+local mt = getrawmetatable(game)
+local old_namecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    
+    if method == "FireServer" or method == "InvokeServer" then
+        local name = self.Name
+        -- Filter for reward/money/currency related remotes
+        local keywords = {"reward", "money", "cash", "currency", "coin", 
+                          "lap", "finish", "checkpoint", "vehicle", "win",
+                          "race", "complete", "prize", "earn", "give"}
+        
+        for _, kw in ipairs(keywords) do
+            if name:lower():find(kw) then
+                print("\n[ðŸŽ¯ REWARD REMOTE CAPTURED]")
+                print("  Name: " .. name)
+                print("  Method: " .. method)
+                print("  Args:")
+                for i, arg in ipairs(args) do
+                    print("    [" .. i .. "] " .. type(arg) .. " = " .. tostring(arg))
+                end
+                print("  Path: " .. self:GetFullName())
+                break
+            end
+        end
+    end
+    
+    return old_namecall(self, ...)
+end)
+
+setreadonly(mt, true)
+print("[HOOK ACTIVE] Play the game normally to capture reward payloads...")
