@@ -1,0 +1,24 @@
+-- Endpoint Scanner (run in executor console first to map the game)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local found = {}
+
+local function scanFolder(folder, path)
+    for _, obj in ipairs(folder:GetDescendants()) do
+        local t = obj.ClassName
+        if t == "RemoteEvent" or t == "RemoteFunction" or t == "BindableEvent" then
+            local fullPath = obj:GetFullName()
+            table.insert(found, {name = obj.Name, class = t, path = fullPath})
+            print("[ENDPOINT] " .. t .. " â†’ " .. fullPath)
+        end
+    end
+end
+
+scanFolder(ReplicatedStorage, "ReplicatedStorage")
+
+-- Also scan workspace network bridges
+scanFolder(game:GetService("Workspace"), "Workspace")
+
+print("\n[TOTAL ENDPOINTS FOUND]: " .. #found)
+for i, ep in ipairs(found) do
+    print(i, ep.class, ep.name, ep.path)
+end
