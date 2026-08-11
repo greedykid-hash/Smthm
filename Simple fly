@@ -1,0 +1,125 @@
+-- Load your custom UI
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/greedykid-hash/Smthm/main/My%20ui%20evil%20Jp%20969"))()
+
+-- Fly Logic Setup
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local flying = false
+local speed = 50
+
+local bodyVelocity, bodyGyro, renderConnection
+local upButton, downButton, mobileGui
+
+local function createMobileControls()
+	mobileGui = Instance.new("ScreenGui")
+	mobileGui.Name = "FlyMobileControls"
+	mobileGui.Parent = player:WaitForChild("PlayerGui")
+
+	upButton = Instance.new("TextButton")
+	upButton.Size = UDim2.new(0, 60, 0, 60)
+	upButton.Position = UDim2.new(1, -80, 0.5, -70)
+	upButton.Text = "▲"
+	upButton.TextSize = 24
+	upButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	upButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	upButton.BackgroundTransparency = 0.3
+	upButton.Parent = mobileGui
+
+	downButton = Instance.new("TextButton")
+	downButton.Size = UDim2.new(0, 60, 0, 60)
+	downButton.Position = UDim2.new(1, -80, 0.5, 10)
+	downButton.Text = "▼"
+	downButton.TextSize = 24
+	downButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	downButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	downButton.BackgroundTransparency = 0.3
+	downButton.Parent = mobileGui
+end
+
+local function startFly()
+	if flying then return end
+	local character = player.Character or player.CharacterAdded:Wait()
+	local root = character:WaitForChild("HumanoidRootPart")
+	local humanoid = character:WaitForChild("Humanoid")
+
+	flying = true
+
+	createMobileControls()
+
+	bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+	bodyVelocity.Velocity = Vector3.zero
+	bodyVelocity.Parent = root
+
+	bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+	bodyGyro.CFrame = root.CFrame
+	bodyGyro.Parent = root
+
+	local isGoingUp = false
+	local isGoingDown = false
+
+	upButton.MouseButton1Down:Connect(function() isGoingUp = true end)
+	upButton.MouseButton1Up:Connect(function() isGoingUp = false end)
+	downButton.MouseButton1Down:Connect(function() isGoingDown = true end)
+	downButton.MouseButton1Up:Connect(function() isGoingDown = false end)
+
+	renderConnection = RunService.RenderStepped:Connect(function()
+		if not flying then return end
+
+		local moveDir = humanoid.MoveDirection
+		local vertical = 0
+		if isGoingUp then vertical = vertical + 1 end
+		if isGoingDown then vertical = vertical - 1 end
+
+		bodyVelocity.Velocity = (moveDir * speed) + Vector3.new(0, vertical * speed, 0)
+		bodyGyro.CFrame = camera.CFrame
+	end)
+end
+
+local function stopFly()
+	flying = false
+	if renderConnection then renderConnection:Disconnect() end
+	if bodyVelocity then bodyVelocity:Destroy() end
+	if bodyGyro then bodyGyro:Destroy() end
+	if mobileGui then mobileGui:Destroy() end
+end
+
+-- UI Window & Elements
+local Window = Library:CreateWindow({
+	Name = "Test UI",
+	LoadingTitle = "Loading Fly Script...",
+	LoadingSubtitle = "by Assistant",
+	ConfigurationSaving = { Enabled = false }
+})
+
+local MainTab = Window:CreateTab("Movement", 4483362458)
+
+MainTab:CreateToggle({
+	Name = "Fly Menu (Mobile Compatible)",
+	CurrentValue = false,
+	Flag = "FlyToggle",
+	Callback = function(Value)
+		if Value then
+			startFly()
+		else
+			stopFly()
+		end
+	end,
+})
+
+MainTab:CreateSlider({
+	Name = "Fly Speed",
+	Range = {10, 200},
+	Increment = 5,
+	Suffix = "Speed",
+	CurrentValue = 50,
+	Flag = "FlySpeedSlider",
+	Callback = function(Value)
+		speed = Value
+	end,
+})
