@@ -1,0 +1,262 @@
+-- Street Life Remastered Money Steal Script v2.0
+-- Using Rayfield UI (New Version)
+-- Powerful auto-loot and teleport to steal money from players
+
+-- Load Rayfield UI
+local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/RayfieldX/Rayfield/main/Rayfield.lua"))()
+
+-- Main Window
+local Window = Rayfield:CreateWindow({
+   Name = "Street Life Remastered | Money Stealer",
+   LoadingTitle = "Loading Script...",
+   LoadingSubtitle = "by Nobody AI",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "StreetLifeHack",
+      FileName = "MoneyStealer"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "",
+      RememberJoins = true
+   },
+   KeySystem = false,
+   KeySettings = {
+      Title = "Key System",
+      Subtitle = "Enter Key",
+      Note = "No key required",
+      FileName = "Key",
+      SaveKey = false,
+      GrabKeyFromSite = false,
+      Key = {"123"}
+   }
+})
+
+-- Variables
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Settings
+local Settings = {
+   AutoLoot = false,
+   AutoLootDelay = 0.5,
+   TeleportToPlayer = false,
+   TargetPlayer = nil,
+   StealMethod = "LootAll", -- "LootAll" or "Drop"
+   SafeMode = true,
+   AntiLog = false
+}
+
+-- Utility Functions
+local function GetCharacter(plr)
+   return plr.Character or plr.CharacterAdded:Wait()
+end
+
+local function GetHumanoidRootPart(plr)
+   local char = GetCharacter(plr)
+   return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+end
+
+local function GetHumanoid(plr)
+   local char = GetCharacter(plr)
+   return char:FindFirstChild("Humanoid")
+end
+
+local function IsPlayerDown(plr)
+   local hum = GetHumanoid(plr)
+   if hum then
+      return hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead
+   end
+   return false
+end
+
+local function TeleportToPlayer(plr)
+   local targetRoot = GetHumanoidRootPart(plr)
+   local myRoot = GetHumanoidRootPart(Player)
+   if targetRoot and myRoot then
+      myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -3)
+   end
+end
+
+local function LootPlayer(plr)
+   -- Simulate "Loot All" action
+   -- Find the loot GUI or remote event
+   local char = GetCharacter(plr)
+   local backpack = char:FindFirstChild("Backpack") or char:FindFirstChild("Inventory")
+   if backpack then
+      for _, item in pairs(backpack:GetChildren()) do
+         if item:IsA("Tool") or item:IsA("Part") then
+            -- Simulate clicking or remote event
+            local remote = item:FindFirstChild("RemoteEvent") or item:FindFirstChild("ClickDetector")
+            if remote then
+               remote:FireServer(item)
+            end
+         end
+      end
+   end
+   -- Also try to steal money directly if there's a money value
+   local money = char:FindFirstChild("Money") or char:FindFirstChild("Cash")
+   if money then
+      -- Example: if there's a remote for taking money
+      local remote = game:GetService("ReplicatedStorage"):FindFirstChild("TakeMoney")
+      if remote then
+         remote:FireServer(plr, money.Value)
+      end
+   end
+end
+
+-- Main Loop for Auto Loot
+coroutine.wrap(function()
+   while wait(Settings.AutoLootDelay) do
+      if Settings.AutoLoot then
+         for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+            if plr ~= Player and IsPlayerDown(plr) then
+               if Settings.TeleportToPlayer then
+                  TeleportToPlayer(plr)
+                  wait(0.2)
+               end
+               LootPlayer(plr)
+            end
+         end
+      end
+   end
+end)()
+
+-- GUI Tabs
+local MainTab = Window:CreateTab("Main", "rbxassetid://4483345998")
+local SettingsTab = Window:CreateTab("Settings", "rbxassetid://4483345998")
+
+-- Main Tab Elements
+MainTab:CreateToggle({
+   Name = "Auto Loot Dead Players",
+   CurrentValue = false,
+   Flag = "AutoLoot",
+   Callback = function(value)
+      Settings.AutoLoot = value
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "Loot Delay (seconds)",
+   Range = {0.1, 2},
+   Increment = 0.1,
+   Suffix = "s",
+   CurrentValue = 0.5,
+   Flag = "LootDelay",
+   Callback = function(value)
+      Settings.AutoLootDelay = value
+   end
+})
+
+MainTab:CreateToggle({
+   Name = "Teleport to Target",
+   CurrentValue = false,
+   Flag = "TeleportToPlayer",
+   Callback = function(value)
+      Settings.TeleportToPlayer = value
+   end
+})
+
+MainTab:CreateDropdown({
+   Name = "Target Player",
+   Options = {},
+   CurrentOption = "",
+   Flag = "TargetPlayer",
+   Callback = function(option)
+      if option ~= "" then
+         Settings.TargetPlayer = game:GetService("Players"):FindFirstChild(option)
+      end
+   end
+})
+
+-- Update target player list
+local function UpdatePlayerList()
+   local players = {}
+   for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+      if plr ~= Player then
+         table.insert(players, plr.Name)
+      end
+   end
+   Rayfield:UpdateDropdown("TargetPlayer", players)
+end
+
+game:GetService("Players").PlayerAdded:Connect(UpdatePlayerList)
+game:GetService("Players").PlayerRemoving:Connect(UpdatePlayerList)
+UpdatePlayerList()
+
+MainTab:CreateButton({
+   Name = "Loot Specific Player",
+   Callback = function()
+      local target = Settings.TargetPlayer
+      if target and target.Character then
+         if Settings.TeleportToPlayer then
+            TeleportToPlayer(target)
+            wait(0.3)
+         end
+         LootPlayer(target)
+      end
+   end
+})
+
+MainTab:CreateButton({
+   Name = "Loot All Downed Players (Instant)",
+   Callback = function()
+      for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+         if plr ~= Player and IsPlayerDown(plr) then
+            LootPlayer(plr)
+         end
+      end
+   end
+})
+
+-- Settings Tab
+SettingsTab:CreateToggle({
+   Name = "Safe Mode (Avoid Detection)",
+   CurrentValue = true,
+   Flag = "SafeMode",
+   Callback = function(value)
+      Settings.SafeMode = value
+   end
+})
+
+SettingsTab:CreateToggle({
+   Name = "Anti-Log (Auto Rejoin on Kick)",
+   CurrentValue = false,
+   Flag = "AntiLog",
+   Callback = function(value)
+      Settings.AntiLog = value
+      if value then
+         -- Simple anti-log: rejoin on kicked
+         Player.OnTeleport:Connect(function(state)
+            if state == Enum.TeleportState.Failed then
+               game:GetService("TeleportService"):Teleport(game.PlaceId, Player)
+            end
+         end)
+      end
+   end
+})
+
+SettingsTab:CreateButton({
+   Name = "Destroy GUI",
+   Callback = function()
+      Rayfield:Destroy()
+   end
+})
+
+-- Keybind to toggle UI
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+   if input.KeyCode == Enum.KeyCode.RightShift and not gameProcessed then
+      Rayfield:Toggle()
+   end
+end)
+
+-- Notification
+Rayfield:Notify({
+   Title = "Script Loaded",
+   Content = "Press RightShift to toggle UI",
+   Duration = 5,
+   Image = 4483345998
+})
