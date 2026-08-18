@@ -1,0 +1,141 @@
+-- Load Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+-- Script Settings
+local Settings = {
+	Enabled = true,
+	HitboxSize = 6, -- Default size
+	Transparency = 0.7,
+	Color = Color3.fromRGB(255, 50, 50)
+}
+
+-- Create Rayfield Window
+local Window = Rayfield:CreateWindow({
+	Name = "BRM5 - Bot Hitbox Expander",
+	LoadingTitle = "Loading Bot Hitbox System...",
+	LoadingSubtitle = "by Assistant",
+	ConfigurationSaving = { Enabled = false },
+	Discord = { Enabled = false },
+	KeySystem = false
+})
+
+local MainTab = Window:CreateTab("Main Settings", 4483362458)
+
+-- Function to modify NPC Hitboxes
+local function applyHitboxToBot(model)
+	-- Ignore real players
+	if Players:GetPlayerFromCharacter(model) then return end
+
+	local hrp = model:FindFirstChild("HumanoidRootPart")
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	
+	if not hrp or not humanoid or humanoid.Health <= 0 then return end
+
+	local expander = model:FindFirstChild("Bot_ExpandedHitbox")
+
+	if Settings.Enabled then
+		if not expander then
+			-- Create Hitbox Part
+			expander = Instance.new("Part")
+			expander.Name = "Bot_ExpandedHitbox"
+			expander.CanCollide = false
+			expander.CanQuery = true
+			expander.Massless = true
+			expander.Material = Enum.Material.ForceField
+
+			-- Weld to RootPart
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = hrp
+			weld.Part1 = expander
+			weld.Parent = expander
+
+			expander.Parent = model
+		end
+
+		-- Update properties dynamically
+		expander.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+		expander.CFrame = hrp.CFrame
+		expander.Transparency = Settings.Transparency
+		expander.Color = Settings.Color
+	else
+		-- Remove expander if feature is toggled OFF
+		if expander then
+			expander:Destroy()
+		end
+	end
+end
+
+-- Update Loop for Workspace NPCs
+local function updateAllBots()
+	for _, child in ipairs(Workspace:GetChildren()) do
+		if child:IsA("Model") and child:FindFirstChildOfClass("Humanoid") then
+			applyHitboxToBot(child)
+		end
+	end
+end
+
+-- Continuous loop to handle dynamic spawning
+RunService.Heartbeat:Connect(function()
+	updateAllBots()
+end)
+
+-- UI Controls
+MainTab:CreateToggle({
+	Name = "Enable Bot Hitbox Expander",
+	CurrentValue = true,
+	Flag = "HitboxToggle",
+	Callback = function(Value)
+		Settings.Enabled = Value
+		if not Value then
+			-- Instantly cleanup hitboxes when disabled
+			for _, child in ipairs(Workspace:GetChildren()) do
+				local expander = child:FindFirstChild("Bot_ExpandedHitbox")
+				if expander then expander:Destroy() end
+			end
+		end
+	end,
+})
+
+MainTab:CreateSlider({
+	Name = "Hitbox Size",
+	Range = {2, 20},
+	Increment = 1,
+	Suffix = " Studs",
+	CurrentValue = 6,
+	Flag = "HitboxSizeSlider",
+	Callback = function(Value)
+		Settings.HitboxSize = Value
+	end,
+})
+
+MainTab:CreateSlider({
+	Name = "Hitbox Transparency",
+	Range = {0, 1},
+	Increment = 0.1,
+	Suffix = "%",
+	CurrentValue = 0.7,
+	Flag = "HitboxTransSlider",
+	Callback = function(Value)
+		Settings.Transparency = Value
+	end,
+})
+
+MainTab:CreateColorPicker({
+	Name = "Hitbox Visual Color",
+	Color = Color3.fromRGB(255, 50, 50),
+	Flag = "HitboxColorPicker",
+	Callback = function(Value)
+		Settings.Color = Value
+	end
+})
+
+Rayfield:Notify({
+	Title = "Hitbox Expander Loaded",
+	Content = "Successfully configured for AI Bots only.",
+	Duration = 4.5,
+	Image = 4483362458,
+})
