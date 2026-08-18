@@ -1,0 +1,119 @@
+-- BRM5 Customized Graphics & Culling Config
+-- Target Profile: Quality 3/10 | Medium Render Distance | Shadow Off | Low FX/Post/Terrain/Vehicles/NPCs
+
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+--------------------------------------------------------------------------------
+-- 1. SPECIFIC GRAPHICS PRESET OVERRIDES
+--------------------------------------------------------------------------------
+
+-- Shadows: Off
+Lighting.GlobalShadows = false
+Lighting.ShadowSoftness = 0
+
+-- Post Processing: Off (Disables Blur, SunRays, Bloom, Atmosphere, DepthOfField)
+for _, effect in ipairs(Lighting:GetChildren()) do
+    if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") or effect:IsA("SunRaysEffect") then
+        effect.Enabled = false
+    end
+end
+
+-- Force Base Technology to minimal pipeline
+Lighting.Technology = Enum.Technology.Compatibility
+
+local function applyTargetSettings(obj)
+    -- Terrain / Environment Quality: Low (Smooth Plastic fallback, keep basic colors)
+    if obj:IsA("BasePart") then
+        obj.CastShadow = false
+        obj.Reflectance = 0
+        
+        -- Vehicle Detail: Low & Player/NPC Detail: Low
+        -- Force performance rendering modes on complex meshes
+        if obj:IsA("MeshPart") then
+            obj.RenderFidelity = Enum.RenderFidelity.Performance
+        end
+
+    -- Particles/Effects: Low
+    elseif obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") or obj:IsA("Trail") then
+        obj.Enabled = false -- Disables particle lag while retaining baseline bullet impact indicators
+
+    -- Decals / Textures: Low Quality
+    elseif obj:IsA("Decal") or obj:IsA("Texture") then
+        obj.Transparency = 0.5 -- Retains minimal visual detail without full texture heavy loading
+    end
+end
+
+-- Process world
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    applyTargetSettings(obj)
+end
+
+Workspace.DescendantAdded:Connect(applyTargetSettings)
+
+
+--------------------------------------------------------------------------------
+-- 2. FRONT-ONLY RENDERING (FRUSTUM CULLING) & MEDIUM RENDER DISTANCE
+--------------------------------------------------------------------------------
+
+local FOV_MARGIN = 0.12
+local CHECK_INTERVAL = 0.25
+
+-- Render Distance: Medium (Set to ~1200 studs for balanced map visibility and performance)
+local MAX_RENDER_DISTANCE = 1200 
+
+local culledObjects = {}
+
+local function isPointInFrustum(point)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(point)
+    if not onScreen then return false end
+
+    local viewportSize = Camera.ViewportSize
+    local inWidth = screenPos.X >= (-viewportSize.X * FOV_MARGIN) and screenPos.X <= (viewportSize.X * (1 + FOV_MARGIN))
+    local inHeight = screenPos.Y >= (-viewportSize.Y * FOV_MARGIN) and screenPos.Y <= (viewportSize.Y * (1 + FOV_MARGIN))
+    local inDistance = screenPos.Z > 0 and screenPos.Z <= MAX_RENDER_DISTANCE
+
+    return inWidth and inHeight and inDistance
+end
+
+local function registerForCulling(part)
+    if part:IsA("BasePart") then
+        -- Retain local character visibility
+        if not (LocalPlayer.Character and part:IsDescendantOf(LocalPlayer.Character)) and part.Name ~= "Terrain" then
+            culledObjects[part] = true
+        end
+    end
+end
+
+for _, descendant in ipairs(Workspace:GetDescendants()) do
+    registerForCulling(descendant)
+end
+
+Workspace.DescendantAdded:Connect(registerForCulling)
+
+-- Heartbeat rendering loop
+local lastCheck = 0
+RunService.Heartbeat:Connect(function(step)
+    lastCheck = lastCheck + step
+    if lastCheck < CHECK_INTERVAL then return end
+    lastCheck = 0
+
+    Camera = Workspace.CurrentCamera
+    
+    for part in pairs(culledObjects) do
+        if part and part.Parent then
+            if isPointInFrustum(part.Position) then
+                part.LocalTransparencyModifier = 0 -- Render in front
+            else
+                part.LocalTransparencyModifier = 1 -- Hide behind camera / out of range
+            end
+        else
+            culledObjects[part] = nil
+        end
+    end
+end)
