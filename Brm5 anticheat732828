@@ -1,0 +1,368 @@
+--[[
+    BRM5 Utility Suite v1.0
+    Features: ESP, Chams (Highlight), Hitbox Expansion, Silent Aim
+    UI Library: Rayfield V2 (Latest)
+]]
+
+-- Load Rayfield (Latest Sirius Source)
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+-- Window Creation
+local Window = Rayfield:CreateWindow({
+    Name = "BRM5 Utility Suite",
+    Icon = "shield", -- Supports Lucide icons or Roblox Image IDs
+    LoadingTitle = "BRM5 Suite",
+    LoadingSubtitle = "by System",
+    Theme = "Default", -- "Default", "AmberGlow", "Ocean", "DarkBlue", "Light", etc.
+    
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+    
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "BRM5Suite",
+        FileName = "Config"
+    },
+    
+    Discord = {
+        Enabled = false,
+        Invite = "noinvitelink",
+        RememberJoins = true
+    },
+    
+    KeySystem = false,
+    KeySettings = {
+        Title = "Key System",
+        Subtitle = "Enter key",
+        Note = "Key is in the description",
+        FileName = "BRM5Key",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"FreeKey"}
+    }
+})
+
+-- Global Settings
+local Settings = {
+    ESP = false,
+    Chams = false,
+    Hitbox = false,
+    SilentAim = false,
+    ESPColor = Color3.fromRGB(255, 0, 0),
+    ChamColor = Color3.fromRGB(0, 255, 0),
+    HitboxSize = 5,
+    FOV = 90
+}
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Tabs
+local MainTab = Window:CreateTab("Main", "crosshair")
+local SettingsTab = Window:CreateTab("Settings", "settings")
+
+-- Utility Functions
+local function IsBot(character)
+    if not character then return false end
+    if character:FindFirstChildOfClass("Humanoid") and character:FindFirstChild("HumanoidRootPart") then
+        if Players:GetPlayerFromCharacter(character) == nil then
+            return true
+        end
+    end
+    return false
+end
+
+-- ESP Implementation
+local ESPObjects = {}
+local function CreateESP(character)
+    if ESPObjects[character] then return end
+    local esp = Instance.new("BillboardGui")
+    esp.Name = "ESP"
+    esp.Adornee = character:WaitForChild("Head", 5)
+    esp.Size = UDim2.new(0, 200, 0, 50)
+    esp.StudsOffset = Vector3.new(0, 2, 0)
+    esp.AlwaysOnTop = true
+    esp.MaxDistance = 1000
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.Text = "BOT"
+    text.TextColor3 = Settings.ESPColor
+    text.TextStrokeTransparency = 0
+    text.TextStrokeColor3 = Color3.new(0, 0, 0)
+    text.Font = Enum.Font.SourceSansBold
+    text.TextSize = 20
+    text.Parent = esp
+
+    esp.Parent = character
+    ESPObjects[character] = esp
+end
+
+local function RemoveESP(character)
+    local esp = ESPObjects[character]
+    if esp then
+        esp:Destroy()
+        ESPObjects[character] = nil
+    end
+end
+
+-- Chams (Highlight)
+local ChamObjects = {}
+local function CreateChams(character)
+    if ChamObjects[character] then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "Cham"
+    highlight.FillColor = Settings.ChamColor
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = character
+    ChamObjects[character] = highlight
+end
+
+local function RemoveChams(character)
+    local cham = ChamObjects[character]
+    if cham then
+        cham:Destroy()
+        ChamObjects[character] = nil
+    end
+end
+
+-- Hitbox Manipulation
+local HitboxObjects = {}
+local function ApplyHitbox(character)
+    if HitboxObjects[character] then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local head = character:FindFirstChild("Head")
+    if not hrp or not head then return end
+
+    local origSizes = {
+        hrp = hrp.Size,
+        head = head.Size
+    }
+
+    hrp.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+    head.Size = Vector3.new(Settings.HitboxSize, Settings.HitboxSize, Settings.HitboxSize)
+
+    hrp.Transparency = 1
+    head.Transparency = 1
+    hrp.CanCollide = false
+    head.CanCollide = false
+
+    HitboxObjects[character] = {origSizes = origSizes}
+end
+
+local function RemoveHitbox(character)
+    local data = HitboxObjects[character]
+    if data then
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        local head = character:FindFirstChild("Head")
+        if hrp then
+            hrp.Size = data.origSizes.hrp
+            hrp.Transparency = 0
+            hrp.CanCollide = true
+        end
+        if head then
+            head.Size = data.origSizes.head
+            head.Transparency = 0
+            head.CanCollide = true
+        end
+        HitboxObjects[character] = nil
+    end
+end
+
+-- Silent Aim Logic
+local function GetTargets()
+    local targets = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") and IsBot(v) then
+            local hrp = v:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                table.insert(targets, v)
+            end
+        end
+    end
+    return targets
+end
+
+local function IsInFOV(screenPoint, fov)
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    return (screenPoint - center).Magnitude <= fov
+end
+
+local function SilentAim()
+    if not Settings.SilentAim then return end
+    local targets = GetTargets()
+    local bestTarget = nil
+    local bestDist = math.huge
+
+    for _, v in ipairs(targets) do
+        local hrp = v:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local screenPos, onScreen = Camera:WorldToScreenPoint(hrp.Position)
+            if onScreen and IsInFOV(Vector2.new(screenPos.X, screenPos.Y), Settings.FOV) then
+                local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestTarget = hrp
+                end
+            end
+        end
+    end
+end
+
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") and IsBot(v) then
+            if Settings.ESP then
+                CreateESP(v)
+            else
+                RemoveESP(v)
+            end
+
+            if Settings.Chams then
+                CreateChams(v)
+            else
+                RemoveChams(v)
+            end
+
+            if Settings.Hitbox then
+                ApplyHitbox(v)
+            else
+                RemoveHitbox(v)
+            end
+        end
+    end
+
+    SilentAim()
+end)
+
+-- UI Controls (Main Tab)
+MainTab:CreateToggle({
+    Name = "ESP",
+    CurrentValue = false,
+    Flag = "ESP_Toggle",
+    Callback = function(Value)
+        Settings.ESP = Value
+        if not Value then
+            for char, esp in pairs(ESPObjects) do
+                esp:Destroy()
+            end
+            ESPObjects = {}
+        end
+    end
+})
+
+MainTab:CreateColorPicker({
+    Name = "ESP Color",
+    Color = Color3.fromRGB(255, 0, 0),
+    Flag = "ESP_Color",
+    Callback = function(Color)
+        Settings.ESPColor = Color
+        for _, esp in pairs(ESPObjects) do
+            local text = esp:FindFirstChildOfClass("TextLabel")
+            if text then
+                text.TextColor3 = Color
+            end
+        end
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "Chams (Highlight)",
+    CurrentValue = false,
+    Flag = "Chams_Toggle",
+    Callback = function(Value)
+        Settings.Chams = Value
+        if not Value then
+            for char, cham in pairs(ChamObjects) do
+                cham:Destroy()
+            end
+            ChamObjects = {}
+        end
+    end
+})
+
+MainTab:CreateColorPicker({
+    Name = "Cham Color",
+    Color = Color3.fromRGB(0, 255, 0),
+    Flag = "Cham_Color",
+    Callback = function(Color)
+        Settings.ChamColor = Color
+        for _, cham in pairs(ChamObjects) do
+            cham.FillColor = Color
+        end
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "Hitbox Expansion",
+    CurrentValue = false,
+    Flag = "Hitbox_Toggle",
+    Callback = function(Value)
+        Settings.Hitbox = Value
+        if not Value then
+            for char, _ in pairs(HitboxObjects) do
+                RemoveHitbox(char)
+            end
+            HitboxObjects = {}
+        end
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {2, 15},
+    Increment = 1,
+    Suffix = "Studs",
+    CurrentValue = 5,
+    Flag = "Hitbox_Size",
+    Callback = function(Value)
+        Settings.HitboxSize = Value
+        for char, data in pairs(HitboxObjects) do
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local head = char:FindFirstChild("Head")
+            if hrp then hrp.Size = Vector3.new(Value, Value, Value) end
+            if head then head.Size = Vector3.new(Value, Value, Value) end
+        end
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "Silent Aim",
+    CurrentValue = false,
+    Flag = "SilentAim_Toggle",
+    Callback = function(Value)
+        Settings.SilentAim = Value
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "Aim FOV",
+    Range = {10, 180},
+    Increment = 1,
+    Suffix = "Degrees",
+    CurrentValue = 90,
+    Flag = "Aim_FOV",
+    Callback = function(Value)
+        Settings.FOV = Value
+    end
+})
+
+-- Notification
+Rayfield:Notify({
+    Title = "BRM5 Utility Suite",
+    Content = "Script successfully loaded with Rayfield V2!",
+    Duration = 5,
+    Image = "check"
+})
+
+-- Config Auto-Load
+Rayfield:LoadConfiguration()
