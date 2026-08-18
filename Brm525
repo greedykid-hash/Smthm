@@ -1,0 +1,104 @@
+-- BRM5 Potato & Frustum Culling Optimizer (Executor Version)
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+--------------------------------------------------------------------------------
+-- 1. POTATO GRAPHICS OPTIMIZATION
+--------------------------------------------------------------------------------
+
+-- Disable heavy lighting effects & shadows
+Lighting.GlobalShadows = false
+Lighting.Technology = Enum.Technology.Compatibility
+Lighting.FogEnd = 9e9
+
+for _, effect in ipairs(Lighting:GetChildren()) do
+    if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
+        effect.Enabled = false
+    end
+end
+
+-- Lower visual quality on parts
+local function optimizePart(obj)
+    if obj:IsA("BasePart") then
+        obj.Material = Enum.Material.SmoothPlastic
+        obj.CastShadow = false
+        obj.Reflectance = 0
+    elseif obj:IsA("Decal") or obj:IsA("Texture") then
+        obj.Transparency = 1
+    elseif obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+        obj.Enabled = false
+    end
+end
+
+-- Process existing map assets
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    optimizePart(obj)
+end
+
+-- Process newly streamed/spawned assets
+Workspace.DescendantAdded:Connect(optimizePart)
+
+--------------------------------------------------------------------------------
+-- 2. FRUSTUM CULLING (Only Render Front / Hide Back)
+--------------------------------------------------------------------------------
+
+local FOV_MARGIN = 0.15
+local CHECK_INTERVAL = 0.2
+local MAX_RENDER_DISTANCE = 1200 -- Max stud distance to render
+
+local culledObjects = {}
+
+local function isPointInFrustum(point)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(point)
+    if not onScreen then return false end
+
+    local viewportSize = Camera.ViewportSize
+    local inWidth = screenPos.X >= (-viewportSize.X * FOV_MARGIN) and screenPos.X <= (viewportSize.X * (1 + FOV_MARGIN))
+    local inHeight = screenPos.Y >= (-viewportSize.Y * FOV_MARGIN) and screenPos.Y <= (viewportSize.Y * (1 + FOV_MARGIN))
+    local inDistance = screenPos.Z > 0 and screenPos.Z <= MAX_RENDER_DISTANCE
+
+    return inWidth and inHeight and inDistance
+end
+
+local function registerForCulling(part)
+    if part:IsA("BasePart") then
+        -- Don't hide local character parts or terrain ground
+        if not (LocalPlayer.Character and part:IsDescendantOf(LocalPlayer.Character)) and part.Name ~= "Terrain" then
+            culledObjects[part] = true
+        end
+    end
+end
+
+-- Index world parts for culling
+for _, descendant in ipairs(Workspace:GetDescendants()) do
+    registerForCulling(descendant)
+end
+
+Workspace.DescendantAdded:Connect(registerForCulling)
+
+-- Continuous Culling Loop
+local lastCheck = 0
+RunService.RenderStepped:Connect(function(step)
+    lastCheck = lastCheck + step
+    if lastCheck < CHECK_INTERVAL then return end
+    lastCheck = 0
+
+    Camera = Workspace.CurrentCamera -- Ensure camera reference stays updated
+    
+    for part in pairs(culledObjects) do
+        if part and part.Parent then
+            if isPointInFrustum(part.Position) then
+                part.LocalTransparencyModifier = 0 -- Render in front
+            else
+                part.LocalTransparencyModifier = 1 -- Hide behind/off-screen
+            end
+        else
+            culledObjects[part] = nil
+        end
+    end
+end)
